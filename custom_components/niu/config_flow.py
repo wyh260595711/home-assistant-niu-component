@@ -27,7 +27,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
             selector.SelectSelectorConfig(
                 options=AVAILABLE_SENSORS,
                 multiple=True,
-                mode=selector.SelectSelectorMode.LIST,
+                mode=selector.SelectSelectorMode.DROPDOWN,
             ),
         ),
     }

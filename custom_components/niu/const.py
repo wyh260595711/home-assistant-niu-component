@@ -55,57 +55,6 @@ AVAILABLE_SENSORS = [
 ]
 
 
-import voluptuous as vol
-
-from homeassistant.components.sensor import PLATFORM_SCHEMA
-
-# Sensors schemas
-from homeassistant.const import CONF_MONITORED_VARIABLES
-import homeassistant.helpers.config_validation as cv
-
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
-    {
-        vol.Required(CONF_USERNAME): cv.string,
-        vol.Required(CONF_PASSWORD): cv.string,
-        vol.Optional(CONF_SCOOTER_ID, default=DEFAULT_SCOOTER_ID): cv.positive_int,
-        vol.Optional(CONF_MONITORED_VARIABLES, default=["BatteryCharge"]): vol.All(
-            cv.ensure_list,
-            vol.Length(min=1),
-            [
-                vol.In(
-                    [
-                        "BatteryCharge",
-                        "Isconnected",
-                        "TimesCharged",
-                        "temperatureDesc",
-                        "Temperature",
-                        "BatteryGrade",
-                        "CurrentSpeed",
-                        "ScooterConnected",
-                        "IsCharging",
-                        "IsLocked",
-                        "TimeLeft",
-                        "EstimatedMileage",
-                        "centreCtrlBatt",
-                        "HDOP",
-                        "Longitude",
-                        "Latitude",
-                        "Distance",
-                        "RidingTime",
-                        "totalMileage",
-                        "DaysInUse",
-                        "LastTrackStartTime",
-                        "LastTrackEndTime",
-                        "LastTrackDistance",
-                        "LastTrackAverageSpeed",
-                        "LastTrackRidingtime",
-                        "LastTrackThumb",
-                    ]
-                )
-            ],
-        ),
-    }
-)
 
 SENSOR_TYPES = {
     "BatteryCharge": [

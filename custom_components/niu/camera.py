@@ -6,8 +6,7 @@ from typing import final
 
 import httpx
 
-from homeassistant.components.camera import STATE_IDLE
-from homeassistant.components.generic.camera import GenericCamera
+from homeassistant.components.camera import Camera
 from homeassistant.helpers.httpx_client import get_async_client
 
 from .api import NiuApi
@@ -46,24 +45,16 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         "framerate": 2,
         "verify_ssl": True,
     }
-    async_add_entities([LastTrackCamera(hass, api, entry, camera_name, camera_name)])
+    async_add_entities([LastTrackCamera(hass, api, camera_name, camera_name)])
 
 
-class LastTrackCamera(GenericCamera):
-    def __init__(self, hass, api, device_info, identifier: str, title: str) -> None:
+class LastTrackCamera(Camera):
+    def __init__(self, hass, api, identifier: str, title: str) -> None:
         self._api = api
-        super().__init__(hass, device_info, identifier, title)
+        super().__init__()
+        self._attr_name = title
+        self._attr_unique_id = identifier
 
-    @property
-    @final
-    def state(self) -> str:
-        """Return the camera state."""
-        return STATE_IDLE
-
-    @property
-    def is_on(self) -> bool:
-        """Return true if on."""
-        return self._last_image != b""
 
     @property
     def device_info(self):
@@ -84,24 +75,17 @@ class LastTrackCamera(GenericCamera):
         get_last_track = lambda: self._api.getDataTrack("track_thumb")
         last_track_url = await self.hass.async_add_executor_job(get_last_track)
 
-        if last_track_url == self._last_url and self._previous_image != b"":
-            # The path image is the same as before so the image is the same:
-            return self._previous_image
+        if not last_track_url:
+            return None
 
         try:
-            async_client = get_async_client(self.hass, verify_ssl=self.verify_ssl)
-            response = await async_client.get(
-                last_track_url, auth=self._auth, timeout=GET_IMAGE_TIMEOUT
-            )
+            async_client = get_async_client(self.hass)
+            response = await async_client.get(last_track_url, timeout=GET_IMAGE_TIMEOUT)
             response.raise_for_status()
-            self._last_image = response.content
+            return response.content
         except httpx.TimeoutException:
             _LOGGER.error("Timeout getting camera image from %s", self._name)
-            return self._last_image
+            return None
         except (httpx.RequestError, httpx.HTTPStatusError) as err:
             _LOGGER.error("Error getting new camera image from %s: %s", self._name, err)
-            return self._last_image
-
-        self._last_url = last_track_url
-        self._previous_image = self._last_image
-        return self._last_image
+            return None

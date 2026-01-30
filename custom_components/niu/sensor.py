@@ -2,11 +2,9 @@
     Support for Niu Scooters by Marcel Westra.
     Asynchronous version implementation by Giovanni P. (@pikka97)
 """
-from datetime import timedelta
 import logging
 
-from homeassistant.helpers.entity import Entity
-from homeassistant.util import Throttle
+from homeassistant.components.sensor import SensorEntity
 
 from .api import NiuApi
 from .const import *
@@ -64,7 +62,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     return True
 
 
-class NiuSensor(Entity):
+class NiuSensor(SensorEntity):
     def __init__(
         self,
         hass,
@@ -101,7 +99,7 @@ class NiuSensor(Entity):
         return self._name
 
     @property
-    def unit_of_measurement(self):
+    def native_unit_of_measurement(self):
         return self._uom
 
     @property
@@ -109,7 +107,7 @@ class NiuSensor(Entity):
         return self._icon
 
     @property
-    def state(self):
+    def native_value(self):
         return self._state
 
     @property
@@ -149,7 +147,6 @@ class NiuSensor(Entity):
                 "centre_ctrl_batt": self._api.getDataMoto("centreCtrlBattery"),
             }
 
-    @Throttle(timedelta(minutes=2))
     async def async_update(self):
         if self._sensor_grp == SENSOR_TYPE_BAT:
             await self._hass.async_add_executor_job(self._api.updateBat)
