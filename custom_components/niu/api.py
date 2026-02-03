@@ -20,18 +20,24 @@ class NiuApi:
         self.dataMoto = None
         self.dataMotoInfo = None
         self.dataTrackInfo = None
+        self.token = None
+        self.sn = None
+        self.sensor_prefix = None
 
         self.ver = "1.0.2024012503"
 
     def initApi(self):
         self.token = self.get_token()
         api_uri = MOTOINFO_LIST_API_URI
-        self.sn = self.get_vehicles_info(api_uri)["data"]["items"][self.scooter_id][
-            "sn_id"
-        ]
-        self.sensor_prefix = self.get_vehicles_info(api_uri)["data"]["items"][
-            self.scooter_id
-        ]["scooter_name"]
+        vehicles_data = self.get_vehicles_info(api_uri)
+        
+        # 增加一些基本的错误检查，防止崩坏
+        if not vehicles_data or "data" not in vehicles_data or "items" not in vehicles_data["data"]:
+            raise Exception("Failed to get vehicle info from NIU API")
+            
+        self.sn = vehicles_data["data"]["items"][self.scooter_id]["sn_id"]
+        self.sensor_prefix = vehicles_data["data"]["items"][self.scooter_id]["scooter_name"]
+        
         self.updateBat()
         self.updateMoto()
         self.updateMotoInfo()
@@ -55,12 +61,15 @@ class NiuApi:
         except BaseException as e:
             print(e)
             return False
-        data = json.loads(r.content.decode())
-        return data["data"]["token"]["access_token"]
+        
+        try:
+            data = json.loads(r.content.decode())
+            return data["data"]["token"]["access_token"]
+        except Exception:
+            return False
 
     def get_vehicles_info(self, path):
         token = self.token
-
         url = API_BASE_URL + path
         headers = {"token": token}
         try:
@@ -72,10 +81,7 @@ class NiuApi:
         data = json.loads(r.content.decode())
         return data
 
-    def get_info(
-        self,
-        path,
-    ):
+    def get_info(self, path):
         sn = self.sn
         token = self.token
         url = API_BASE_URL + path
@@ -97,10 +103,7 @@ class NiuApi:
             return False
         return data
 
-    def post_info(
-        self,
-        path,
-    ):
+    def post_info(self, path):
         sn, token = self.sn, self.token
         url = API_BASE_URL + path
         params = {}
@@ -141,6 +144,42 @@ class NiuApi:
             return False
         return data
 
+    # [新增核心功能] 发送控制指令 (从改版B移植)
+    def send_command(self, command_type: str):
+        """
+        发送控制命令到电动车。
+        :param command_type: 命令类型，例如 "acc_on", "acc_off", "cushion_lock_on"
+        """
+        sn = self.sn
+        token = self.token
+        # 如果 token 丢失，尝试重新获取
+        if not token:
+            self.token = self.get_token()
+            token = self.token
+            if not token: return False
+
+        # 注意：这里使用的是发送指令专用的 URL，和获取数据的不同
+        url = API_BASE_URL + "/v5/cmd/creat"
+        headers = {
+            "token": token,
+            "Content-Type": "application/json; charset=utf-8",
+            # 使用更通用的 User-Agent 模拟手机端
+            "User-Agent": "manager/5.12.4 (iPhone; iOS 18.5; Scale/3.00);deviceName=iPhone;timezone=Asia/Shanghai;model=iPhone13,4;lang=zh-CN;ostype=iOS;clientIdentifier=Domestic"
+        }
+        payload = json.dumps({"sn": sn, "type": command_type})
+
+        try:
+            r = requests.post(url, headers=headers, data=payload)
+            if r.status_code != 200:
+                return False
+            response_data = r.json()
+            if response_data.get("status") == 0:
+                return True
+            else:
+                return False
+        except Exception:
+            return False
+
     def getDataBat(self, id_field):
         return self.dataBat["data"]["batteries"]["compartmentA"][id_field]
 
@@ -167,7 +206,6 @@ class NiuApi:
             thumburl = self.dataTrackInfo["data"][0][id_field].replace(
                 "app-api.niucache.com", "app-api.niu.com"
             )
-            # return thumburl.replace("/track/thumb/", "/track/overseas/thumb/")
             return thumburl
         return self.dataTrackInfo["data"][0][id_field]
 
@@ -182,76 +220,3 @@ class NiuApi:
 
     def updateTrackInfo(self):
         self.dataTrackInfo = self.post_info_track(TRACK_LIST_API_URI)
-
-
-"""class NiuDataBridge(object):
-    async def __init__(self, api):
-    #  hass, username, password, country, scooter_id):
-
-        self.api = api
-        # await hass.async_add_executor_job(lambda : NiuDataBridge(username, password, country, scooter_id))
-        # NiuApi(username, password, country, scooter_id)
-        sn, token = self.api.sn, self.api.token
-
-        self._dataBat = None
-        self._dataMoto = None
-        self._dataMotoInfo = None
-        self._dataTrackInfo = None
-        self._sn = sn
-        self._token = token
-
-    def token(self):
-        return self.api.token
-    
-    def sn(self):
-        return self.api.sn
-
-    def sensor_prefix(self):
-        return self.api.sensor_prefix
-
-    def dataBat(self, id_field):
-        return self._dataBat["data"]["batteries"]["compartmentA"][id_field]
-
-    def dataMoto(self, id_field):
-        return self._dataMoto["data"][id_field]
-
-    def dataDist(self, id_field):
-        return self._dataMoto["data"]["lastTrack"][id_field]
-
-    def dataPos(self, id_field):
-        return self._dataMoto["data"]["postion"][id_field]
-
-    def dataOverall(self, id_field):
-        return self._dataMotoInfo["data"][id_field]
-
-    def dataTrack(self, id_field):
-        if id_field == "startTime" or id_field == "endTime":
-            return datetime.fromtimestamp(
-                (self._dataTrackInfo["data"][0][id_field]) / 1000
-            ).strftime("%Y-%m-%d %H:%M:%S")
-        if id_field == "ridingtime":
-            return strftime(
-                "%H:%M:%S", gmtime(self._dataTrackInfo["data"][0][id_field])
-            )
-        if id_field == "track_thumb":
-            thumburl = self._dataTrackInfo["data"][0][id_field].replace(
-                "app-api.niucache.com", "app-api-fk.niu.com"
-            )
-            return thumburl.replace("/track/thumb/", "/track/overseas/thumb/")
-        return self._dataTrackInfo["data"][0][id_field]
-
-    @Throttle(timedelta(seconds=1))
-    def updateBat(self):
-        self._dataBat = self.api.get_info(MOTOR_BATTERY_API_URI)
-
-    @Throttle(timedelta(seconds=1))
-    def updateMoto(self):
-        self._dataMoto = self.api.get_info(MOTOR_INDEX_API_URI)
-
-    @Throttle(timedelta(seconds=1))
-    def updateMotoInfo(self):
-        self._dataMotoInfo = self.api.post_info(MOTOINFO_ALL_API_URI)
-
-    @Throttle(timedelta(seconds=1))
-    def updateTrackInfo(self):
-        self._dataTrackInfo = self.api.post_info_track(TRACK_LIST_API_URI)"""
