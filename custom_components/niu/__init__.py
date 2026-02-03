@@ -10,26 +10,27 @@ from .const import CONF_AUTH, CONF_SENSORS, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-# 支持的平台列表，添加了 "switch", "button" 和 "device_tracker"
-PLATFORMS = ["sensor", "switch", "button", "device_tracker"]
+# [修改点] 添加 "switch" 和 "button" 到支持列表
+PLATFORMS = ["sensor", "switch", "button"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """从配置条目设置小牛智能插头。"""
+    """Set up Niu Smart Plug from a config entry."""
 
     niu_auth = entry.data.get(CONF_AUTH, None)
-    if niu_auth is None:
-        _LOGGER.error("Niu认证器为空，无法设置集成。")
+    if niu_auth == None:
         return False
 
     sensors_selected = niu_auth[CONF_SENSORS]
+    
+    # [修改点] 为了防止因为没选传感器导致开关无法加载，即使没选传感器也允许继续
     if len(sensors_selected) < 1:
-        _LOGGER.warning("您没有选择任何传感器，集成可能无法完全设置。")
-        # 移除 return False，允许即使没有选择传感器也设置集成，因为现在有开关功能
-        # return False # 移除此行
+        _LOGGER.warning("No sensors selected, but loading integration for controls (Switch/Button).")
+        # return False # 注释掉这里，允许仅加载控制功能
 
     if "LastTrackThumb" in sensors_selected:
-        PLATFORMS.append("camera")
+        if "camera" not in PLATFORMS:
+            PLATFORMS.append("camera")
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -37,9 +38,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """卸载配置条目。"""
+    """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
