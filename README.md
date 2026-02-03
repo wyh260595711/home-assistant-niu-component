@@ -1,3 +1,7 @@
+# My changes
+
+Added a start switch and trunk button
+
 # Update 
 
 增加了对中国大陆小牛电动的支持；国内坐标偏移的处理；其它优化，不定期更新
